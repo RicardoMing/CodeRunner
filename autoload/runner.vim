@@ -241,6 +241,7 @@ function! s:on_compile_exit(id, data, event) abort
     else
         let s:end_time = reltime(s:start_time)
         let s:status.is_exit = 1
+        let s:status.is_running = 0
         let s:status.exit_code = a:data
         let done = ['', '[Done] exited with code=' . a:data . ' in ' . s:self.trim(reltimestr(s:end_time)) . ' seconds']
         call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, done)
@@ -249,8 +250,7 @@ function! s:on_compile_exit(id, data, event) abort
 endfunction
 
 function! s:update_statusline() abort
-    " redrawstatus!
-    call airline#update_statusline()
+    redrawstatus!
 endfunction
 
 function! runner#reg_runner(ft, runner) abort
@@ -274,6 +274,7 @@ function! runner#open(...) abort
                 \ }
     let runner = get(a:000, 0, get(s:runners, &filetype, ''))
     if !empty(runner)
+        let s:selected_language = &filetype
         call s:open_win()
         call s:async_run(runner)
         call s:update_statusline()
@@ -282,7 +283,7 @@ function! runner#open(...) abort
     endif
 endfunction
 
-" remoet at the end of each 
+" remove ^M at the end of each
 let s:_out_data = ['']
 function! s:on_stdout(job_id, data, event) abort
     let s:_out_data[-1] .= a:data[0]
@@ -323,6 +324,7 @@ endfunction
 function! s:on_exit(job_id, data, event) abort
     let s:end_time = reltime(s:start_time)
     let s:status.is_exit = 1
+    let s:status.is_running = 0
     let s:status.exit_code = a:data
     let done = ['', '[Done] exited with code=' . a:data . ' in ' . s:self.trim(reltimestr(s:end_time)) . ' seconds']
     call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, done)
@@ -332,7 +334,7 @@ endfunction
 function! runner#status() abort
     if s:status.is_running == 1
     elseif s:status.is_exit == 1
-        return 'exit code : ' . s:status.exit_code 
+        return 'exit code: ' . s:status.exit_code
                     \ . '    time: ' . s:self.trim(reltimestr(s:end_time))
                     \ . '    language: ' . get(s:, 'selected_language', &ft)
     endif
