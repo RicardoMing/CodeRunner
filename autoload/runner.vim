@@ -114,7 +114,7 @@ endfunction
 
 function! s:insert() abort
     call inputsave()
-    let input = input('input >')
+    let input = input('input > ')
     if !empty(input) && s:status.is_running == 1
         call s:self.send(s:job_id, input)
     endif
@@ -274,7 +274,7 @@ function! runner#open(...) abort
                 \ 'exit_code' : 0
                 \ }
     let runner = get(a:000, 0, get(s:runners, &filetype, ''))
-    let s:filename = expand('%:t')
+    let s:filename = expand('%')
     if !empty(runner)
         let s:selected_language = &filetype
         call s:open_win()
