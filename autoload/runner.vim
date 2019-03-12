@@ -245,6 +245,7 @@ function! s:on_compile_exit(id, data, event) abort
         let s:status.exit_code = a:data
         let done = ['', '[Done] exited with code=' . a:data . ' in ' . s:self.trim(reltimestr(s:end_time)) . ' seconds']
         call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, done)
+        call s:handle_error()
     endif
     call s:update_statusline()
 endfunction
@@ -273,6 +274,7 @@ function! runner#open(...) abort
                 \ 'exit_code' : 0
                 \ }
     let runner = get(a:000, 0, get(s:runners, &filetype, ''))
+    let s:filename = expand('%:t')
     if !empty(runner)
         let s:selected_language = &filetype
         call s:open_win()
@@ -328,7 +330,19 @@ function! s:on_exit(job_id, data, event) abort
     let s:status.exit_code = a:data
     let done = ['', '[Done] exited with code=' . a:data . ' in ' . s:self.trim(reltimestr(s:end_time)) . ' seconds']
     call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, done)
+    if a:data != 0
+        call s:handle_error()
+    endif
     call s:update_statusline()
+endfunction
+
+function! s:handle_error() abort
+    cexpr substitute(join(getbufline(s:bufnr, 1, '$'), "\n"), '<stdin>', s:filename, 'g')
+    call runner#close()
+    let l:lines = &lines * 30 / 100
+    let l:status_info = runner#status()
+    call setqflist([], 'r', {'title': l:status_info})
+    exe 'copen ' . l:lines
 endfunction
 
 function! runner#status() abort
