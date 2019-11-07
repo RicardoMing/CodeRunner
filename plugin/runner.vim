@@ -20,3 +20,9 @@ augroup CodeRunner
     autocmd!
     autocmd WinEnter __runner__ call s:HandleOnlyWindow()
 augroup END
+
+nmap <silent> <Plug>CodeRunner :call runner#open()<CR>
+
+if !exists(':Runner')
+    command! -nargs=0 Runner call runner#open()
+endif
