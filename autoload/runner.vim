@@ -17,7 +17,7 @@ function! s:self.start(argv, ...) abort
             let job = jobstart(a:argv, a:1)
         else
             let job = jobstart(a:argv)
-        endi
+        endif
     catch /^Vim\%((\a\+)\)\=:E903/
         return -1
     endtry
@@ -50,6 +50,8 @@ function! s:self.send(id, data) abort
         else
             call jobsend(a:id, a:data)
         endif
+    else
+        call self.warn('[job API] Failed to send data to job: ' . a:id)
     endif
 endfunction
 
@@ -81,6 +83,13 @@ function! s:self.trim(str) abort
     return substitute(str, '^\s*', '', 'g')
 endfunction
 
+function! s:self.win_set_cursor(win, pos) abort
+    call nvim_win_set_cursor(a:win, a:pos)
+endfunction
+
+function! s:self.buf_line_count(buf) abort
+    return nvim_buf_line_count(a:buf)
+endfunction
 
 " ==============================================================================
 
@@ -88,6 +97,7 @@ endfunction
 let s:runners = {}
 
 let s:bufnr = 0
+let s:winid = -1
 
 function! s:open_win() abort
     if s:bufnr != 0 && bufexists(s:bufnr)
@@ -109,6 +119,7 @@ function! s:open_win() abort
     nnoremap <silent><buffer> q :call runner#close()<cr>
     nnoremap <silent><buffer> i :call <SID>insert()<cr>
     let s:bufnr = bufnr('%')
+    let s:winid = win_getid(winnr())
     wincmd p
 endfunction
 
@@ -145,6 +156,11 @@ function! s:async_run(runner) abort
         " the runner is a list
         " the first item is compile cmd, and the second one is running cmd.
         let s:target = s:self.unify_path(tempname(), ':p')
+        let dir = fnamemodify(s:target, ':h')
+        if isdirectory(dir)
+            call mkdir(dir, 'p')
+        endif
+        let s:need_compile = 1
         if type(a:runner[0]) == type({})
             if type(a:runner[0].exe) == 2
                 let exe = call(a:runner[0].exe, [])
@@ -159,7 +175,8 @@ function! s:async_run(runner) abort
                 let compile_cmd = compile_cmd + a:runner[0].opt + [get(s:, 'selected_file', bufname('%'))]
             endif
         else
-            let compile_cmd = substitute(printf(a:runner[0], bufname('%')), '#TEMP#', s:target, 'g')
+            let usestdin =  0
+            let compile_cmd = [substitute(printf(a:runner[0], bufname('%')), '#TEMP#', s:target, 'g')]
         endif
         call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 3, 0, [
                     \ '[Compile] ' . join(compile_cmd) . (usestdin ? ' STDIN' : ''),
@@ -258,13 +275,15 @@ function! runner#reg_runner(ft, runner) abort
     let s:runners[a:ft] = a:runner
     let desc = '[' . a:ft . '] ' . string(a:runner)
     let cmd = "call runner#set_language('" . a:ft . "')"
-    call add(g:unite_source_menu_menus.RunnerLanguage.command_candidates, [desc,cmd])
+    " call add(g:unite_source_menu_menus.RunnerLanguage.command_candidates, [desc,cmd])
 endfunction
 
 function! runner#get(ft) abort
     return deepcopy(get(s:runners, a:ft , ''))
 endfunction
 
+" this func should support specific a runner
+" the runner can be a string
 function! runner#open(...) abort
     let s:lines = 0
     let s:status = {
@@ -297,8 +316,9 @@ function! s:on_stdout(job_id, data, event) abort
         let lines = s:_out_data
     endif
     if !empty(lines)
-        let lines = map(lines, "substitute(v:val, '$', '', 'g')")
+        let lines = map(lines, "substitute(v:val, '$', '', 'g')")
         call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, lines)
+        call s:self.win_set_cursor(s:winid, [s:self.buf_line_count(s:bufnr), 1])
     endif
     let s:lines += len(lines)
     let s:_out_data = ['']
@@ -316,7 +336,9 @@ function! s:on_stderr(job_id, data, event) abort
         let lines = s:_out_data
     endif
     if !empty(lines)
+        let lines = map(lines, "substitute(v:val, '$', '', 'g')")
         call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, lines)
+        call s:self.win_set_cursor(s:winid, [s:self.buf_line_count(s:bufnr), 1])
     endif
     let s:lines += len(lines)
     let s:_out_data = ['']
@@ -348,9 +370,9 @@ endfunction
 function! runner#status() abort
     if s:status.is_running == 1
     elseif s:status.is_exit == 1
-        return 'exit code: ' . s:status.exit_code
-                    \ . '    time: ' . s:self.trim(reltimestr(s:end_time))
-                    \ . '    language: ' . get(s:, 'selected_language', &ft)
+        return 'exit code : ' . s:status.exit_code
+                    \ . '    time : ' . s:self.trim(reltimestr(s:end_time))
+                    \ . '    language : ' . get(s:, 'selected_language', &ft)
     endif
     return ''
 endfunction
@@ -382,12 +404,12 @@ function! runner#select_file() abort
     endif
 endfunction
 
-let g:unite_source_menu_menus =
-            \ get(g:,'unite_source_menu_menus',{})
-let g:unite_source_menu_menus.RunnerLanguage = {'description':
-            \ 'Custom mapped keyboard shortcuts                   [SPC] p p'}
-let g:unite_source_menu_menus.RunnerLanguage.command_candidates =
-            \ get(g:unite_source_menu_menus.RunnerLanguage,'command_candidates', [])
+" let g:unite_source_menu_menus =
+"             \ get(g:,'unite_source_menu_menus',{})
+" let g:unite_source_menu_menus.RunnerLanguage = {'description':
+"             \ 'Custom mapped keyboard shortcuts                   [SPC] p p'}
+" let g:unite_source_menu_menus.RunnerLanguage.command_candidates =
+"             \ get(g:unite_source_menu_menus.RunnerLanguage,'command_candidates', [])
 
 function! runner#select_language() abort
     " @todo use denite or unite to select language
