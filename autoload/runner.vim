@@ -262,7 +262,7 @@ function! s:on_compile_exit(id, data, event) abort
         let s:status.exit_code = a:data
         let done = ['', '[Done] exited with code=' . a:data . ' in ' . s:self.trim(reltimestr(s:end_time)) . ' seconds']
         call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, done)
-        call s:handle_error()
+        " call s:handle_error()
     endif
     call s:update_statusline()
 endfunction
@@ -294,6 +294,7 @@ function! runner#open(...) abort
                 \ }
     let runner = get(a:000, 0, get(s:runners, &filetype, ''))
     let s:filename = expand('%')
+    let s:need_compile = 0
     if !empty(runner)
         let s:selected_language = &filetype
         call s:open_win()
@@ -352,9 +353,9 @@ function! s:on_exit(job_id, data, event) abort
     let s:status.exit_code = a:data
     let done = ['', '[Done] exited with code=' . a:data . ' in ' . s:self.trim(reltimestr(s:end_time)) . ' seconds']
     call s:self.buf_set_lines(s:bufnr, s:lines , s:lines + 1, 0, done)
-    if a:data != 0
-        call s:handle_error()
-    endif
+    " if a:data != 0 && s:need_compile == 0
+    "     call s:handle_error()
+    " endif
     call s:update_statusline()
 endfunction
 
