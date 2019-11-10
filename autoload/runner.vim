@@ -118,6 +118,7 @@ function! s:open_win() abort
     set filetype=CodeRunner
     nnoremap <silent><buffer> q :call runner#close()<cr>
     nnoremap <silent><buffer> i :call <SID>insert()<cr>
+    nnoremap <silent><buffer> o :call <SID>handle_error()<cr>
     let s:bufnr = bufnr('%')
     let s:winid = win_getid(winnr())
     wincmd p
@@ -360,8 +361,9 @@ function! s:on_exit(job_id, data, event) abort
 endfunction
 
 function! s:handle_error() abort
-    cexpr substitute(join(getbufline(s:bufnr, 1, '$'), "\n"), '<stdin>', s:filename, 'g')
+    let l:context = substitute(join(getbufline(s:bufnr, 1, '$'), "\n"), '<stdin>', s:filename, 'g')
     call runner#close()
+    cexpr l:context
     let l:lines = &lines * 30 / 100
     let l:status_info = runner#status()
     call setqflist([], 'r', {'title': l:status_info})
